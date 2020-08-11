@@ -4,7 +4,7 @@
     <title>title</title>
 </head>
 <body>
-
+//测试
 <form id="dfrom"  method="post" action="<%=request.getContextPath()%>/deploy.uf">
     <input type="hidden" name="fn" value="<%=request.getAttribute("message")%>">
     <H1>程序包名称： <%=request.getAttribute("message")%></H1>
