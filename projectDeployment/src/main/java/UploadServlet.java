@@ -3,13 +3,16 @@ import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
 
 import javax.servlet.ServletException;
-import javax.servlet.ServletOutputStream;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.awt.*;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class UploadServlet extends HttpServlet {
     // 上传文件存储目录
@@ -31,22 +34,38 @@ public class UploadServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
         doGet(request,response);
     }
-
+    //程序部署
     private void deploy(HttpServletRequest request, HttpServletResponse response) {
-
+        ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newCachedThreadPool();
+        List<Future<String>> resultList = new ArrayList<Future<String>>();
         String[] ips = request.getParameterValues("ip");
         String fn = request.getParameter("fn");
+
+        //换行符
+         String ls = "<br>";
+        //返回到页面的信息
+        StringBuffer exctRsl = new StringBuffer(fn).append(ls);
+
         try{
             for(String ip : ips){
                 DeployThread dt = new DeployThread(ip,fn);
-                Thread th = new Thread(dt);
-                th.setName(ip);
-                th.start();
-                System.out.println(th.getName());
+                Future<String> res = executor.submit(dt);//异步提交, non blocking.
+                resultList.add(res);
             }
+            //获取执行结果
+            do {
+                System.out.println("任务执行中....");
+                TimeUnit.SECONDS.sleep(1);
+            } while (executor.getCompletedTaskCount() < resultList.size());
 
-            request.setAttribute("message",
-                    fn);
+            for (int i = 0; i < resultList.size(); i++) {
+                Future<String> result = resultList.get(i);
+                String rsl = result.isDone()?"部署成功":"部署失败";
+                exctRsl.append("节点").append(result.get()).append(rsl).append(ls);
+            }
+            executor.shutdown();
+
+            request.setAttribute("message", exctRsl);
             // 跳转到 代码部署.jsp
             getServletContext().getRequestDispatcher("/successPage.jsp").forward(request, response);
         }catch (Exception ex){
@@ -63,7 +82,7 @@ public class UploadServlet extends HttpServlet {
         }
 
     }
-
+    //部署包上传程序
     private void upload(HttpServletRequest request, HttpServletResponse response) {
             //2.开始配置上传参数-创建fileItem工厂
             DiskFileItemFactory factory = new DiskFileItemFactory();
@@ -85,14 +104,11 @@ public class UploadServlet extends HttpServlet {
 
         try {
             //远程服务器登陆准备
-            String servers = PropertiesHelper.getValue("servers");
-            String[] serverArr = servers.split(",");
-
+            String host=PropertiesHelper.getValue("host");
             String username=PropertiesHelper.getValue("username");
             String password=PropertiesHelper.getValue("password");
             int port = Integer.valueOf(PropertiesHelper.getValue("port"));
             String targetDir=PropertiesHelper.getValue("targetDir");
-
 
             //部署文件准备
             InputStream is = null;
@@ -108,27 +124,17 @@ public class UploadServlet extends HttpServlet {
                     }
                 }
             }
-
-            for(String ip : serverArr){
-                SSH ssh = new SSH(ip, port, username, password);
-                ssh.uploadFile(is,targetDir,fileName);
-//                String command = "sh "+PropertiesHelper.getValue("tcommand");
-//                if(fileName.indexOf(".war.") > -1){
-//                    command = "sh "+PropertiesHelper.getValue("jcommand");
-//                }
-//                System.out.println(command+" "+fileName.substring(0,fileName.indexOf(".")));
-//                ssh.execShell(command+" "+fileName.substring(0,fileName.indexOf(".")));//执行远程shell脚本
-                ssh.closeSession();
-            }
+            //创建ssh通道上传压缩包到服务器
+            SSH ssh = new SSH(host, port, username, password);
+            ssh.uploadFile(is,targetDir,fileName);
+            ssh.closeSession();
 
 
-            request.setAttribute("message",
-                    fileName);
+            request.setAttribute("message",fileName);
             // 跳转到 代码部署.jsp
             getServletContext().getRequestDispatcher("/deploy.jsp").forward(request, response);
         } catch (Exception ex) {
-            request.setAttribute("message",
-                    fileName+"上传失败！错误信息: " + ex.getMessage());
+            request.setAttribute("message",fileName+"上传失败！错误信息: " + ex.getMessage());
             ex.printStackTrace();
             try {
                 getServletContext().getRequestDispatcher("/errPage.jsp").forward(request, response);

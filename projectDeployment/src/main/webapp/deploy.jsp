@@ -1,10 +1,9 @@
 <%@ page contentType="text/html;charset=UTF-8" language="java" %>
 <html>
 <head>
-    <title>title</title>
+    <title>程序部署</title>
 </head>
 <body>
-//测试
 <form id="dfrom"  method="post" action="<%=request.getContextPath()%>/deploy.uf">
     <input type="hidden" name="fn" value="<%=request.getAttribute("message")%>">
     <H1>程序包名称： <%=request.getAttribute("message")%></H1>

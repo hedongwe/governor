@@ -9,6 +9,7 @@ import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Vector;
+import java.util.concurrent.TimeUnit;
 
 public class SSH {
     private String username = null;
@@ -79,7 +80,7 @@ public class SSH {
             Properties sshConfig = new Properties();
             sshConfig.put("StrictHostKeyChecking", "no");
             session.setConfig(sshConfig);
-            session.connect();
+            session.connect(3000);//连接3秒超时
         } catch (JSchException e) {
             e.printStackTrace();
             return null;
@@ -154,9 +155,6 @@ public class SSH {
             channel = session.openChannel("exec");
 
             ((ChannelExec) channel).setCommand(command);
-
-
-
             channel.setInputStream(null);
             BufferedReader input = new BufferedReader(new InputStreamReader(channel.getInputStream()));
 
